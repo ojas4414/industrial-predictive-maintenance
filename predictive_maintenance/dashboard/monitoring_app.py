@@ -1,116 +1,209 @@
 import streamlit as st
-import requests
-import random
 import pandas as pd
 import plotly.graph_objects as go
-from streamlit_autorefresh import st_autorefresh
+import plotly.express as px
 from pathlib import Path
+from streamlit_autorefresh import st_autorefresh
 
-API_URL="http://127.0.0.1:8000/predict"
+
+st_autorefresh(interval=2000, key="refresh")
+
+st.set_page_config(
+    page_title="Industrial Predictive Maintenance",
+    layout="wide"
+)
+
+
+st.markdown("""
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;600&display=swap');
+
+/* -------- LIGHT TECH BACKGROUND -------- */
+
+html, body, [class*="css"] {
+    font-family:'Rajdhani',sans-serif;
+    color:white;
+
+    background-image:url("https://www.transparenttextures.com/patterns/cubes.png");
+    background-color:#0a3a66;
+
+    background-size:300px;
+}
+
+/* -------- MAIN PANEL -------- */
+
+.main .block-container{
+    background:rgba(0,20,50,0.45);
+    padding:40px;
+    border-radius:18px;
+    backdrop-filter: blur(4px);
+}
+
+/* -------- TITLE -------- */
+
+.title-box{
+    background:linear-gradient(90deg,#00c6ff,#0072ff);
+    padding:25px;
+    border-radius:16px;
+    text-align:center;
+    box-shadow:0px 0px 25px rgba(0,170,255,0.7);
+    margin-bottom:25px;
+}
+
+.title-box h1{
+    font-family:'Orbitron',sans-serif;
+    font-size:42px;
+    letter-spacing:2px;
+}
+
+/* -------- SECTION LABELS -------- */
+
+.section-box{
+    background:rgba(0,50,120,0.45);
+    border:1px solid rgba(0,200,255,0.6);
+    padding:12px;
+    border-radius:12px;
+    text-align:center;
+    font-size:22px;
+    margin-top:25px;
+    margin-bottom:15px;
+}
+
+/* -------- METRIC COLORS -------- */
+
+[data-testid="stMetricValue"]{
+    color:#9be7ff;
+    font-size:36px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="title-box">
+<h1>Industrial Predictive Maintenance Control Center</h1>
+</div>
+""", unsafe_allow_html=True)
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-LOG_PATH = BASE_DIR / "prediction_log.csv"
+csv_path = BASE_DIR / "prediction_log.csv"
 
-st.set_page_config(page_title="Predictive Maintenance Control Center",layout="wide")
+if not csv_path.exists():
+    st.error("Prediction log not found. Run inference_worker first.")
+    st.stop()
 
-st_autorefresh(interval=2000,key="refresh")
+df = pd.read_csv(csv_path)
+latest = df.iloc[-1]
 
-st.title("⚙ Industrial Predictive Maintenance Control Center")
+rul = latest["predicted_RUL"]
+temperature = latest["sensor11"]
+vibration = latest["sensor12"]
 
-sensor_data={
-"setting1":random.random(),
-"setting2":random.random(),
-"setting3":100,
-"sensor1":random.uniform(500,550),
-"sensor2":random.uniform(600,650),
-"sensor3":random.uniform(1500,1600),
-"sensor4":random.uniform(1300,1400),
-"sensor5":random.uniform(10,20),
-"sensor6":random.uniform(20,30),
-"sensor7":random.uniform(500,600),
-"sensor8":2388,
-"sensor9":random.uniform(800,900),
-"sensor10":random.uniform(1,2),
-"sensor11":random.uniform(40,50),
-"sensor12":random.uniform(500,550),
-"sensor13":2388,
-"sensor14":random.uniform(8000,9000),
-"sensor15":random.uniform(8,9),
-"sensor16":random.uniform(0,0.1),
-"sensor17":random.uniform(380,420),
-"sensor18":2388,
-"sensor19":100,
-"sensor20":random.uniform(35,45),
-"sensor21":random.uniform(20,30)
-}
 
-try:
-    r=requests.post(API_URL,json=sensor_data)
-    rul=r.json()["predicted_RUL"]
-except:
-    rul=0
+st.markdown('<div class="section-box">Live Machine Metrics</div>', unsafe_allow_html=True)
 
-temperature=sensor_data["sensor2"]
-vibration=sensor_data["sensor9"]
-
-col1,col2,col3=st.columns(3)
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("Remaining Useful Life",round(rul,2))
+
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=rul,
+        title={'text': "Remaining Useful Life"},
+        gauge={
+            'axis': {'range':[0,300]},
+            'bar': {'color':"lightgreen"},
+            'steps':[
+                {'range':[0,50],'color':'red'},
+                {'range':[50,120],'color':'orange'},
+                {'range':[120,300],'color':'green'}
+            ]
+        }
+    ))
+
+    st.plotly_chart(fig,use_container_width=True)
 
 with col2:
-    st.metric("Temperature",round(temperature,2))
+
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=temperature,
+        title={'text': "Temperature"},
+        gauge={
+            'axis': {'range':[0,100]},
+            'bar': {'color':'cyan'}
+        }
+    ))
+
+    st.plotly_chart(fig,use_container_width=True)
 
 with col3:
-    st.metric("Vibration",round(vibration,2))
 
-if LOG_PATH.exists():
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=vibration,
+        title={'text': "Vibration"},
+        gauge={
+            'axis': {'range':[0,600]},
+            'bar': {'color':'lime'}
+        }
+    ))
 
-    df=pd.read_csv(LOG_PATH)
+    st.plotly_chart(fig,use_container_width=True)
 
-    fig1=go.Figure()
-    fig1.add_trace(go.Scatter(y=df["predicted_RUL"],mode="lines"))
-    fig1.update_layout(title="RUL Prediction History",template="plotly_dark")
 
-    st.plotly_chart(fig1,use_container_width=True,key="rul_history")
+st.markdown('<div class="section-box">Sensor Telemetry</div>', unsafe_allow_html=True)
 
-    if "sensor2" in df.columns:
+c1, c2 = st.columns(2)
 
-        fig2=go.Figure()
-        fig2.add_trace(go.Scatter(y=df["sensor2"],mode="lines"))
-        fig2.update_layout(title="Temperature History",template="plotly_dark")
+with c1:
 
-        st.plotly_chart(fig2,use_container_width=True,key="temp_history")
+    fig = px.line(
+        df,
+        y="sensor11",
+        title="Temperature History"
+    )
 
-    if "sensor9" in df.columns:
+    fig.update_layout(template="plotly_dark")
 
-        fig3=go.Figure()
-        fig3.add_trace(go.Scatter(y=df["sensor9"],mode="lines"))
-        fig3.update_layout(title="Vibration History",template="plotly_dark")
+    st.plotly_chart(fig,use_container_width=True)
 
-        st.plotly_chart(fig3,use_container_width=True,key="vib_history")
+with c2:
 
-gauge=go.Figure(go.Indicator(
-mode="gauge+number",
-value=rul,
-title={"text":"Engine Health"},
-gauge={
-"axis":{"range":[0,200]},
-"steps":[
-{"range":[0,50],"color":"red"},
-{"range":[50,100],"color":"orange"},
-{"range":[100,200],"color":"green"}
-]
-}
-))
+    fig = px.line(
+        df,
+        y="sensor12",
+        title="Vibration History"
+    )
 
-st.plotly_chart(gauge,use_container_width=True,key="health_gauge")
+    fig.update_layout(template="plotly_dark")
 
-if rul<50:
-    st.error("CRITICAL: Engine failure likely soon")
+    st.plotly_chart(fig,use_container_width=True)
 
-elif rul<100:
-    st.warning("Maintenance recommended soon")
+
+st.markdown('<div class="section-box">Remaining Useful Life Trend</div>', unsafe_allow_html=True)
+
+fig = px.line(
+    df,
+    y="predicted_RUL",
+    title="Predicted Remaining Useful Life"
+)
+
+fig.update_layout(template="plotly_dark")
+
+st.plotly_chart(fig,use_container_width=True)
+
+
+
+st.markdown('<div class="section-box">Engine Health Status</div>', unsafe_allow_html=True)
+
+if rul < 50:
+    st.error("⚠️ CRITICAL: Machine Failure Imminent")
+
+elif rul < 120:
+    st.warning("⚠️ Maintenance Required Soon")
 
 else:
-    st.success("Engine operating normally")
+    st.success("✔ Machine Operating Normally")
